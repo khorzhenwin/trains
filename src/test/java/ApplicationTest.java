@@ -6,12 +6,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ApplicationTest {
 
@@ -92,5 +95,82 @@ public class ApplicationTest {
 
         // Ensure the train name is consistent
         assertEquals("Q1", first.getTrain());
+    }
+
+    @Test
+    public void testSelfLoopWithPickupsAndDropoffs() throws Exception {
+        Train train = Train.builder()
+                .name("Q1")
+                .capacity(10)
+                .current(Application.a)
+                .availableAtInSeconds(0)
+                .build();
+
+        Application.history = new ArrayList<>();
+
+        Application.moveTrain(train, Application.a, List.of("K1"), List.of("K1"));
+
+        assertEquals(1, Application.history.size());
+        TravelPlan plan = Application.history.get(0);
+        assertEquals("A", plan.getFrom());
+        assertEquals("A", plan.getTo());
+        assertTrue(plan.getPickUps().contains("K1"));
+        assertTrue(plan.getDropOffs().contains("K1"));
+    }
+
+
+    @Test
+    public void testNoPathBetweenNodes() throws Exception {
+        Node Z = Node.builder().name("Z").build(); // not connected
+
+        Train train = Train.builder()
+                .name("Q1")
+                .capacity(10)
+                .current(Z)
+                .availableAtInSeconds(0)
+                .build();
+
+        Application.history = new ArrayList<>();
+
+        Application.moveTrain(train, Application.c, List.of("K1"), List.of("K1"));
+
+        // No movement should happen
+        assertTrue(Application.history.isEmpty());
+    }
+
+    @Test
+    public void testDropOffWithoutPickup() throws Exception {
+        Train train = Train.builder()
+                .name("Q1")
+                .capacity(10)
+                .current(Application.a)
+                .availableAtInSeconds(0)
+                .build();
+
+        Application.history = new ArrayList<>();
+
+        Application.moveTrain(train, Application.c, Collections.emptyList(), List.of("K1"));
+
+        TravelPlan lastMove = Application.history.get(Application.history.size() - 1);
+        assertTrue(lastMove.getDropOffs().contains("K1"));  // It will log it, even if logically odd
+    }
+
+    @Test
+    public void testTrainExceedsCapacityShouldFail() {
+        // Create a train with capacity 3 (too small for K1)
+        Train train = Train.builder()
+                .name("Q2")
+                .capacity(3)  // K1 is 5
+                .current(Application.a)
+                .availableAtInSeconds(0)
+                .build();
+
+        Application.history = new ArrayList<>();
+
+        Exception exception = assertThrows(Exception.class, () -> {
+            Application.moveTrain(train, Application.c, List.of("K1"), List.of("K1"));
+        });
+
+        assertTrue(exception.getMessage().contains("exceeded its capacity"));
     }
 }
